@@ -87,17 +87,17 @@ post_means = function(prior_phi = c(3,15),
       theta_star_minus = as.numeric(names(n_j_minus))
       n_star_minus = length(theta_star_minus)
       
-      # q0 here is a normal density (after annoying integration)
+      # q0 which we derived with the integral of part 1.1
       q0 = dnorm(y[i], curr_mu, sqrt(curr_phi + curr_tau2))
       
-      # as is qj, by construction
+      # also derived
       qj = dnorm(y[i], theta_star_minus, sqrt(curr_phi))
       
       # Probabilities of determining which to draw
-      # Calculate A
+      # See definitions in pdf
       A = curr_alpha * q0 / (curr_alpha * q0 + sum(n_j_minus * qj))
       
-      # Calculate B's
+      # See definitions in pdf
       Bj = n_j_minus * qj / (curr_alpha * q0 + sum(n_j_minus * qj))
       
       # Make the update

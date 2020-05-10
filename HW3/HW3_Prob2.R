@@ -207,10 +207,10 @@ for (iter in 2:(nburn + nmcmc)){
     qj = dnorm(y[i], theta_star_minus, sqrt(curr_phi))
     
     # Probabilities of determining which to draw
-    # Calculate A
+    # See definitions in pdf
     A = curr_alpha * q0 / (curr_alpha * q0 + sum(n_j_minus * qj))
     
-    # Calculate B's
+    # See definitions in pdf
     Bj = n_j_minus * qj / (curr_alpha * q0 + sum(n_j_minus * qj))
     
     # Make the update
