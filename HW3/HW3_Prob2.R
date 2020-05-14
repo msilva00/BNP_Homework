@@ -30,13 +30,13 @@ plot_trace_density = function(param, prob = 0.95, precision = 1000, main1="main1
   abline(v = mean(param), col = "red", lwd = 3)
 }
 
-# Example 
-mu_test = rnorm(10000, 0, 1)
-plot_trace_density(mu_test, main1 = expression("Traceplot for" ~ mu), 
-                   main2 = expression("Posterior density for" ~ mu),
-                   ylab1 = expression(mu), xlab1 = expression(mu), 
-                   xlab2 = expression(mu), ylab2 = expression(mu))
-
+# # Example 
+# mu_test = rnorm(10000, 0, 1)
+# plot_trace_density(mu_test, main1 = expression("Traceplot for" ~ mu), 
+#                    main2 = expression("Posterior density for" ~ mu),
+#                    ylab1 = expression(mu), xlab1 = expression(mu), 
+#                    xlab2 = expression(mu), ylab2 = expression(mu))
+# 
 
 ##################################################################################
 # Posterior density plots for multiple component mixtures
