@@ -9,10 +9,11 @@
 ### remove the old/unwanted version	 
 	rm /usr/local/bin/gfortran # get rid of this version
 	brew reinstall gcc # this has newest version of gfortran and C/C++ compiler
-### If you've never installed a C/C++ compiler
+### If you've never installed a C/C++ compiler.
 	#brew install gcc ## uncomment and run if you have never installed gcc
 	# mkdir ~/.R ##<— do if you don’t have directory mkdir ~/.R
 ### Else do the following (change Makevar from Terminal)
+Be careful with the following as it may change existing Makevars/settings.
 	cat << EOF >> ~/.R/Makevars
 	FLIBS=-L/usr/local/gfortran/lib/gcc/x86_64-apple-darwin16/6.3.0 -L/usr/local/gfortran/lib -lgfortran -lquadmath -lm
 	EOF
