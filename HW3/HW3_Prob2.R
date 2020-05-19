@@ -184,89 +184,94 @@ param_mt[1,] = c(rnorm(1, prior_mu_a, sqrt(prior_mu_b)),
                   rinvgamma(1, prior_tau2_a, prior_tau2_b))
 
 # Iterations
-for (iter in 2:(nburn + nmcmc)){
-  cat("\r", iter, "/", nburn + nmcmc)
-  
-  # Current parameters (used for convenience)
-  curr_theta = param_theta[iter-1,]
-  curr_alpha = param_alpha[iter-1]
-  curr_mu = param_mt[iter-1,1]
-  curr_tau2 = param_mt[iter-1,2]
-  curr_phi = param_phi[iter-1]
-  
-  # Update thetas
-  for (i in 1:n){
-    n_j_minus = table(curr_theta[-i])
-    theta_star_minus = as.numeric(names(n_j_minus))
-    n_star_minus = length(theta_star_minus)
+run_sampler = function(){
+  ptm <- proc.time()
+  for (iter in 2:(nburn + nmcmc)){
+    cat("\r", iter, "/", nburn + nmcmc)
     
-    # q0 here is a normal density (after annoying integration)
-    q0 = dnorm(y[i], curr_mu, sqrt(curr_phi + curr_tau2))
+    # Keep track of current parameters
+    curr_theta = param_theta[iter-1,]
+    curr_alpha = param_alpha[iter-1]
+    curr_mu = param_mt[iter-1,1]
+    curr_tau2 = param_mt[iter-1,2]
+    curr_phi = param_phi[iter-1]
     
-    # as is qj, by construction
-    qj = dnorm(y[i], theta_star_minus, sqrt(curr_phi))
-    
-    # Probabilities of determining which to draw
-    # See definitions in pdf
-    A = curr_alpha * q0 / (curr_alpha * q0 + sum(n_j_minus * qj))
-    
-    # See definitions in pdf
-    Bj = n_j_minus * qj / (curr_alpha * q0 + sum(n_j_minus * qj))
-    
-    # Make the update
-    draw = sample(n_star_minus + 1, 1, prob = c(A, Bj))
-    if (draw == 1){ # Make a draw from h
-      curr_theta[i] = rnorm(1, (curr_mu*curr_phi + y[i]+curr_tau2)/(curr_phi + curr_tau2),
-                         sqrt(curr_phi*curr_tau2/(curr_phi + curr_tau2)))
-    } else { # Make a draw from the existing groups
-      curr_theta[i] = theta_star_minus[draw-1]
+    # Update thetas
+    for (i in 1:n){
+      n_j_minus = table(curr_theta[-i])
+      theta_star_minus = as.numeric(names(n_j_minus))
+      n_star_minus = length(theta_star_minus)
+      
+      # q0 here is a normal density (Derived in pdf)
+      q0 = dnorm(y[i], curr_mu, sqrt(curr_phi + curr_tau2))
+      
+      # as is qj, by construction
+      qj = dnorm(y[i], theta_star_minus, sqrt(curr_phi))
+      
+      # Probabilities of determining which to draw
+      # See definitions in pdf
+      A = curr_alpha * q0 / (curr_alpha * q0 + sum(n_j_minus * qj))
+      
+      # See definitions in pdf
+      Bj = n_j_minus * qj / (curr_alpha * q0 + sum(n_j_minus * qj))
+      
+      # Make the update
+      draw = sample(n_star_minus + 1, 1, prob = c(A, Bj))
+      if (draw == 1){ # Make a draw from h
+        curr_theta[i] = rnorm(1, (curr_mu*curr_phi + y[i]+curr_tau2)/(curr_phi + curr_tau2),
+                           sqrt(curr_phi*curr_tau2/(curr_phi + curr_tau2)))
+      } else { # Make a draw from the existing groups
+        curr_theta[i] = theta_star_minus[draw-1]
+      }
     }
+    n_j = table(curr_theta)
+    theta_star = as.numeric(names(n_j))
+    n_star = length(theta_star)
+    
+    # Update alpha
+    # Introduce latent variable eta to draw a new alpha (Escobar and West, 1995)
+    eta = rbeta(1, curr_alpha + 1, n)
+    epsilon = (prior_alpha_a + n_star - 1) /
+      (n*(prior_alpha_b - log(eta)) + prior_alpha_a + n_star - 1)
+    if (runif(1) < epsilon){
+      curr_alpha = rgamma(1, prior_alpha_a + n_star, prior_alpha_b - log(eta))
+    } else {
+      curr_alpha = rgamma(1, prior_alpha_a + n_star - 1, prior_alpha_b - log(eta))
+    }
+    
+    # Update param_mt: param_mt[,1] = mu, param_mt[,2] = tau^2
+    S = sum(theta_star)
+    curr_mu = rnorm(1, (prior_mu_a*curr_tau2 + prior_mu_b * S) /
+                   (curr_tau2 + prior_mu_b * n_star),
+                 sqrt(curr_tau2 * prior_mu_b / (curr_tau2 + prior_mu_b * n_star)))
+    curr_tau2 = rinvgamma(1, prior_tau2_a + n_star/2,
+                       prior_tau2_b + 1/2 * sum((theta_star - curr_mu)^2))
+    
+    # Update phi
+    curr_phi = rinvgamma(1, prior_phi_a + n/2, prior_phi_b + 1/2 * sum((y - curr_theta)^2))
+    
+    # Update the clusters (Can be shown to be normally distributed)
+    for (j in 1:n_star){
+      temp_w = which(curr_theta == theta_star[j])
+      curr_theta[temp_w] = rnorm(1,
+                              (curr_phi*curr_mu + curr_tau2*sum(y[temp_w])) / (curr_phi + n_j[j]*curr_tau2),
+                              sqrt(curr_phi*curr_tau2 / (curr_phi + n_j[j]*curr_tau2)))
+    }
+    
+    # Save the current draws
+    param_theta[iter,] = curr_theta
+    param_alpha[iter] = curr_alpha
+    param_mt[iter,1] = curr_mu
+    param_mt[iter,2] = curr_tau2
+    param_phi[iter] = curr_phi
+    
+    if (iter == (nburn + nmcmc))
+      cat("\n")
   }
-  n_j = table(curr_theta)
-  theta_star = as.numeric(names(n_j))
-  n_star = length(theta_star)
-  
-  # Update alpha
-  # Introduce latent variable eta to draw a new alpha (Escobar and West, 1995)
-  eta = rbeta(1, curr_alpha + 1, n)
-  epsilon = (prior_alpha_a + n_star - 1) /
-    (n*(prior_alpha_b - log(eta)) + prior_alpha_a + n_star - 1)
-  if (runif(1) < epsilon){
-    curr_alpha = rgamma(1, prior_alpha_a + n_star, prior_alpha_b - log(eta))
-  } else {
-    curr_alpha = rgamma(1, prior_alpha_a + n_star - 1, prior_alpha_b - log(eta))
-  }
-  
-  # Update param_mt: param_mt[,1] = mu, param_mt[,2] = tau^2
-  S = sum(theta_star)
-  curr_mu = rnorm(1, (prior_mu_a*curr_tau2 + prior_mu_b * S) /
-                 (curr_tau2 + prior_mu_b * n_star),
-               sqrt(curr_tau2 * prior_mu_b / (curr_tau2 + prior_mu_b * n_star)))
-  curr_tau2 = rinvgamma(1, prior_tau2_a + n_star/2,
-                     prior_tau2_b + 1/2 * sum((theta_star - curr_mu)^2))
-  
-  # Update phi
-  curr_phi = rinvgamma(1, prior_phi_a + n/2, prior_phi_b + 1/2 * sum((y - curr_theta)^2))
-  
-  # Update the clusters (Can be shown to be normally distributed)
-  for (j in 1:n_star){
-    temp_w = which(curr_theta == theta_star[j])
-    curr_theta[temp_w] = rnorm(1,
-                            (curr_phi*curr_mu + curr_tau2*sum(y[temp_w])) / (curr_phi + n_j[j]*curr_tau2),
-                            sqrt(curr_phi*curr_tau2 / (curr_phi + n_j[j]*curr_tau2)))
-  }
-  
-  # Save the current draws
-  param_theta[iter,] = curr_theta
-  param_alpha[iter] = curr_alpha
-  param_mt[iter,1] = curr_mu
-  param_mt[iter,2] = curr_tau2
-  param_phi[iter] = curr_phi
-  
-  if (iter == (nburn + nmcmc))
-    cat("\n")
+  total_time = proc.time() - ptm
+  print(total_time)
 }
-
+run_sampler()
 ### Remove burn-in
 param_theta = tail(param_theta, nmcmc)
 param_alpha = tail(param_alpha, nmcmc)
