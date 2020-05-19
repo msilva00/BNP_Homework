@@ -14,6 +14,7 @@
 	# mkdir ~/.R ##<— do if you don’t have directory mkdir ~/.R
 ### Else do the following (change Makevar from Terminal)
 Be careful with the following as it may change existing Makevars/settings.
+
 	cat << EOF >> ~/.R/Makevars
 	FLIBS=-L/usr/local/gfortran/lib/gcc/x86_64-apple-darwin16/6.3.0 -L/usr/local/gfortran/lib -lgfortran -lquadmath -lm
 	EOF
