@@ -2,6 +2,7 @@ library(RCurl)
 gitstring = "https://raw.githubusercontent.com/msilva00/BNP_Homework/master/HW3/hwk3-data.txt"
 
 setwd("~/BNP_Homework/HW3/")
+## Installation requires many additional steps, see README file for instructions for mac users
 # url = "https://cran.r-project.org/src/contrib/Archive/DPpackage/DPpackage_1.1-7.4.tar.gz"
 # pkgFile = "DPpackage_1.1-7.4.tar.gz"
 # download.file(url = url, destfile = pkgFile)
@@ -10,7 +11,7 @@ setwd("~/BNP_Homework/HW3/")
 
 library(DPpackage)
 ### Posterior predictive loss criterion
-pplc = function(y, ypred, k = Inf){
+post_pred_loss = function(y, ypred, k = Inf){
   n = length(y)
   vars = apply(ypred, 2, var)
   means = apply(ypred, 2, mean)
@@ -55,12 +56,42 @@ plot((fit1$save.state$thetasave[,3]), main="rate of ig part", type='l')
 plot((fit1$save.state$thetasave[,4]), type='l')
 plot((fit1$save.state$thetasave[,5]), main=expression(alpha), type='l')
 
+
+mu_mean = fit1$save.state$thetasave[,1]
+kappa = fit1$save.state$thetasave[,2]
+beta_rate = fit1$save.state$thetasave[,3]  
+ncluster = fit1$save.state$thetasave[,4]
+alpha = fit1$save.state$thetasave[,5]
+
+save_outs = data.frame(mu_mean, kappa, beta_rate, ncluster, alpha)
+
+write.csv(save_outs, "mcmc_outs.csv")
+
 plot(density(fit1$save.state$thetasave[,1]), main="mean of normal part")
 plot(density(fit1$save.state$thetasave[,2]), main=expression(kappa))
 plot(density(fit1$save.state$thetasave[,3]), main="rate of ig part")
 plot(table(fit1$save.state$thetasave[,4])/nmcmc)
 plot(density(fit1$save.state$thetasave[,5]), main=expression(alpha))
 
+plot_trace_density(mu_mean, main1 = expression("Traceplot for posterior samples of "~mu), ylab1 = expression(mu),
+                   main2 = expression("Histogram for posterior samples of "~mu), xlab2 = expression(mu))
+
+plot_trace_density(kappa, main1 = expression("Traceplot for posterior samples of "~kappa), ylab1 = expression(kappa),
+                   main2 = expression("Histogram for posterior samples of "~kappa), xlab2 = expression(kappa))
+
+plot_trace_density(beta_rate, main1 = expression("Traceplot for posterior samples of "~ beta ~" (rate for IG)"), 
+                   ylab1 = expression(beta),
+                   main2 = expression("Histogram for posterior samples of "~beta), 
+                   xlab2 = expression(beta))
+
+plot_trace_density(alpha, main1 = expression("Traceplot for posterior samples of "~alpha), ylab1 = expression(alpha),
+                   main2 = expression("Histogram for posterior samples of "~alpha), xlab2 = expression(alpha))
+
+
+plot(table(fit1$save.state$thetasave[,4])/nmcmc, xlab = "clusters", ylab = "Mass")
+
+?DPdensity
+print(fit1)
 
 plot(density(fit1$save.state$randsave[,501]))
 plot(density(fit1$save.state$randsave[,502]))
@@ -114,9 +145,9 @@ lines(density(y), lwd = 3)
 legend("topleft", box.lty = 0, legend = "Data", lwd = 3, cex = 1.5)
 dev.off()
 
-### Replicate for each observation (don't really need to, but it makes pplc work)
+### Replicate for each observation (don't really need to, but it makes post_pred_loss work)
 y1 = matrix(rep(y0, n), ncol = n)
 
-pplc(y, y1, 0)                      # 2390.80
-pplc(y, y1, Inf)                    # 4745.31
-pplc(y, y1, Inf) - pplc(y, y1, 0)   # 2354.51
+post_pred_loss(y, y1, 0)                      # 2390.80
+post_pred_loss(y, y1, Inf)                    # 4745.31
+post_pred_loss(y, y1, Inf) - post_pred_loss(y, y1, 0)   # 2354.51

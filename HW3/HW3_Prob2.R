@@ -2,7 +2,7 @@
 library(scales)
 # Function to plot the traces and posterior density
 plot_trace_density = function(param, prob = 0.95, precision = 1000, main1="main1", main2="main2",
-                              xlab1="xlab1", xlab2 = "Iteration", par_settings = T,
+                              xlab2="xlab2", xlab1 = "Iteration", par_settings = T,
                               ylab1 = "ylab1", ylab2 = "Density", breaks = 20){
   # param - the mcmc samples for a parameter
   # prob - high posterior density interval (i.e 95%)
@@ -21,7 +21,7 @@ plot_trace_density = function(param, prob = 0.95, precision = 1000, main1="main1
        xlab = "Iteration", ylab = ylab1)
   abline(h = mean(param), col = "red", lwd = 3)
   # histogram and density
-  hist(param, xlab = xlab1, probability = TRUE,ylim = c(0,max(dens$y)), 
+  hist(param, xlab = xlab2, probability = TRUE,ylim = c(0,max(dens$y)), 
        main = main2)
   lines(density(param))
   x1 <- min(which(dens$x >= quants[1]))  
@@ -184,94 +184,92 @@ param_mt[1,] = c(rnorm(1, prior_mu_a, sqrt(prior_mu_b)),
                   rinvgamma(1, prior_tau2_a, prior_tau2_b))
 
 # Iterations
-run_sampler = function(){
-  ptm <- proc.time()
-  for (iter in 2:(nburn + nmcmc)){
-    cat("\r", iter, "/", nburn + nmcmc)
+for (iter in 2:(nburn + nmcmc)){
+  cat("\r", iter, "/", nburn + nmcmc)
+  
+  # Keep track of current draws
+  curr_theta = param_theta[iter-1,]
+  curr_alpha = param_alpha[iter-1]
+  curr_mu = param_mt[iter-1,1]
+  curr_tau2 = param_mt[iter-1,2]
+  curr_phi = param_phi[iter-1]
+  
+  # Update thetas
+  for (i in 1:n){
+    n_j_minus = table(curr_theta[-i])
+    theta_star_minus = as.numeric(names(n_j_minus))
+    n_star_minus = length(theta_star_minus)
     
-    # Keep track of current parameters
-    curr_theta = param_theta[iter-1,]
-    curr_alpha = param_alpha[iter-1]
-    curr_mu = param_mt[iter-1,1]
-    curr_tau2 = param_mt[iter-1,2]
-    curr_phi = param_phi[iter-1]
+    # q0 here is a normal density (after annoying integration)
+    q0 = dnorm(y[i], curr_mu, sqrt(curr_phi + curr_tau2))
     
-    # Update thetas
-    for (i in 1:n){
-      n_j_minus = table(curr_theta[-i])
-      theta_star_minus = as.numeric(names(n_j_minus))
-      n_star_minus = length(theta_star_minus)
-      
-      # q0 here is a normal density (Derived in pdf)
-      q0 = dnorm(y[i], curr_mu, sqrt(curr_phi + curr_tau2))
-      
-      # as is qj, by construction
-      qj = dnorm(y[i], theta_star_minus, sqrt(curr_phi))
-      
-      # Probabilities of determining which to draw
-      # See definitions in pdf
-      A = curr_alpha * q0 / (curr_alpha * q0 + sum(n_j_minus * qj))
-      
-      # See definitions in pdf
-      Bj = n_j_minus * qj / (curr_alpha * q0 + sum(n_j_minus * qj))
-      
-      # Make the update
-      draw = sample(n_star_minus + 1, 1, prob = c(A, Bj))
-      if (draw == 1){ # Make a draw from h
-        curr_theta[i] = rnorm(1, (curr_mu*curr_phi + y[i]+curr_tau2)/(curr_phi + curr_tau2),
-                           sqrt(curr_phi*curr_tau2/(curr_phi + curr_tau2)))
-      } else { # Make a draw from the existing groups
-        curr_theta[i] = theta_star_minus[draw-1]
-      }
+    # as is qj, by construction
+    qj = dnorm(y[i], theta_star_minus, sqrt(curr_phi))
+    
+    # Probabilities of determining which to draw
+    # See definitions in pdf
+    A = curr_alpha * q0 / (curr_alpha * q0 + sum(n_j_minus * qj))
+    
+    # See definitions in pdf
+    Bj = n_j_minus * qj / (curr_alpha * q0 + sum(n_j_minus * qj))
+    
+    # Make the update
+    draw = sample(n_star_minus + 1, 1, prob = c(A, Bj))
+    if (draw == 1){ # Make a draw from h
+      curr_theta[i] = rnorm(1, (curr_mu*curr_phi + y[i]+curr_tau2)/(curr_phi + curr_tau2),
+                         sqrt(curr_phi*curr_tau2/(curr_phi + curr_tau2)))
+    } else { # Make a draw from the existing groups
+      curr_theta[i] = theta_star_minus[draw-1]
     }
-    n_j = table(curr_theta)
-    theta_star = as.numeric(names(n_j))
-    n_star = length(theta_star)
-    
-    # Update alpha
-    # Introduce latent variable eta to draw a new alpha (Escobar and West, 1995)
-    eta = rbeta(1, curr_alpha + 1, n)
-    epsilon = (prior_alpha_a + n_star - 1) /
-      (n*(prior_alpha_b - log(eta)) + prior_alpha_a + n_star - 1)
-    if (runif(1) < epsilon){
-      curr_alpha = rgamma(1, prior_alpha_a + n_star, prior_alpha_b - log(eta))
-    } else {
-      curr_alpha = rgamma(1, prior_alpha_a + n_star - 1, prior_alpha_b - log(eta))
-    }
-    
-    # Update param_mt: param_mt[,1] = mu, param_mt[,2] = tau^2
-    S = sum(theta_star)
-    curr_mu = rnorm(1, (prior_mu_a*curr_tau2 + prior_mu_b * S) /
-                   (curr_tau2 + prior_mu_b * n_star),
-                 sqrt(curr_tau2 * prior_mu_b / (curr_tau2 + prior_mu_b * n_star)))
-    curr_tau2 = rinvgamma(1, prior_tau2_a + n_star/2,
-                       prior_tau2_b + 1/2 * sum((theta_star - curr_mu)^2))
-    
-    # Update phi
-    curr_phi = rinvgamma(1, prior_phi_a + n/2, prior_phi_b + 1/2 * sum((y - curr_theta)^2))
-    
-    # Update the clusters (Can be shown to be normally distributed)
-    for (j in 1:n_star){
-      temp_w = which(curr_theta == theta_star[j])
-      curr_theta[temp_w] = rnorm(1,
-                              (curr_phi*curr_mu + curr_tau2*sum(y[temp_w])) / (curr_phi + n_j[j]*curr_tau2),
-                              sqrt(curr_phi*curr_tau2 / (curr_phi + n_j[j]*curr_tau2)))
-    }
-    
-    # Save the current draws
-    param_theta[iter,] = curr_theta
-    param_alpha[iter] = curr_alpha
-    param_mt[iter,1] = curr_mu
-    param_mt[iter,2] = curr_tau2
-    param_phi[iter] = curr_phi
-    
-    if (iter == (nburn + nmcmc))
-      cat("\n")
   }
-  total_time = proc.time() - ptm
-  print(total_time)
+  n_j = table(curr_theta)
+  theta_star = as.numeric(names(n_j))
+  n_star = length(theta_star)
+  
+  # Update alpha
+  # Introduce latent variable eta to draw a new alpha (Escobar and West, 1995)
+  eta = rbeta(1, curr_alpha + 1, n)
+  epsilon = (prior_alpha_a + n_star - 1) /
+    (n*(prior_alpha_b - log(eta)) + prior_alpha_a + n_star - 1)
+  if (runif(1) < epsilon){
+    curr_alpha = rgamma(1, prior_alpha_a + n_star, prior_alpha_b - log(eta))
+  } else {
+    curr_alpha = rgamma(1, prior_alpha_a + n_star - 1, prior_alpha_b - log(eta))
+  }
+  
+  # Update param_mt: param_mt[,1] = mu, param_mt[,2] = tau^2
+  S = sum(theta_star)
+  curr_mu = rnorm(1, (prior_mu_a*curr_tau2 + prior_mu_b * S) /
+                 (curr_tau2 + prior_mu_b * n_star),
+               sqrt(curr_tau2 * prior_mu_b / (curr_tau2 + prior_mu_b * n_star)))
+  curr_tau2 = rinvgamma(1, prior_tau2_a + n_star/2,
+                     prior_tau2_b + 1/2 * sum((theta_star - curr_mu)^2))
+  
+  # Update phi
+  curr_phi = rinvgamma(1, prior_phi_a + n/2, prior_phi_b + 1/2 * sum((y - curr_theta)^2))
+  
+  # Update the clusters (Can be shown to be normally distributed)
+  for (j in 1:n_star){
+    temp_w = which(curr_theta == theta_star[j])
+    curr_theta[temp_w] = rnorm(1,
+                            (curr_phi*curr_mu + curr_tau2*sum(y[temp_w])) / (curr_phi + n_j[j]*curr_tau2),
+                            sqrt(curr_phi*curr_tau2 / (curr_phi + n_j[j]*curr_tau2)))
+  }
+  
+  # Save the current draws
+  param_theta[iter,] = curr_theta
+  param_alpha[iter] = curr_alpha
+  param_mt[iter,1] = curr_mu
+  param_mt[iter,2] = curr_tau2
+  param_phi[iter] = curr_phi
+  
+  if (iter == (nburn + nmcmc)){
+    cat("\n")
+  }
 }
-run_sampler()
+
+
+
 ### Remove burn-in
 param_theta = tail(param_theta, nmcmc)
 param_alpha = tail(param_alpha, nmcmc)
@@ -313,19 +311,20 @@ par.fun = function(j){
   return (out)
 }
 group = (foreach(j = 1:n, .combine = rbind) %dopar% par.fun(j)) / nmcmc
-
-?foreach
-par(mfrow = c(2,2))
+# par(mfrow = c(2,2))
 plot(table(clusters) / nmcmc, main = expression(n^"*"), cex.main = 2, lwd = 3, ylab="Mass")
 a = par("pin")
 b = par("plt")
-image.plot(group[ord, ord], main = "Cluster groupings heatmap")
+image.plot(group[ord, ord], main = "Pairwise Clustering Probabilities", axes = F, col = heat.colors(250))
+ticks_names = seq(0,250, 10)
+axis(1, at=seq(0,1,length.out = length(ticks_names)) , labels=ticks_names, las = 2) 
+axis(2, at=seq(0,1,length.out = length(ticks_names)) , labels=ticks_names, las = 2) 
+box()
 par("pin" = a, "plt" = b)
 plot_trace_density(param_alpha, main1 = expression("Traceplot for" ~ alpha), par_settings = F,
                    main2 = expression("Posterior density for" ~ alpha),
                    ylab1 = expression(alpha), xlab1 = expression(alpha), 
                    xlab2 = expression(alpha), ylab2 = expression(alpha))
-dim(group)
 #### Figure 2a ####
 par(mfrow = c(1,1))
 clusters = apply(param_theta, 1, function(x) length(unique(x)))
@@ -340,14 +339,14 @@ median_theta = apply(param_theta, 2, mean)
 plot(median_theta[ord], col = 'red', lwd = 3.0, type = 'l', 
      xlab = expression(theta ~ Index), ylab ="", cex.main = 2,
      main = expression("Posterior cluster locations for each" ~ theta[i]))
-ci_shade = seq(1,250)
-polygon(c(ci_shade,rev(ci_shade)),
-        c(quantile_thetass[2,ord],rev(quantile_thetass[1,ord])),
-        col=alpha("pink", 0.3), border = NA)
 points(y[ord], col = 'black', pch = 20, cex = 0.5)
 legend("topleft", legend=c("Data", "Posterior medians", "95% Posterior CI"), fill=c(NA, NA, alpha("pink", 0.5)),
        bty="n", lwd = c(NA, 3, NA), pch = c(20, NA, NA), border = c(NA, NA, NA), 
        col = c("black", "red", "pink"), cex = 1.3) 
+polygon(c(seq(1,250),rev(seq(1,250))),
+        c(quantile_thetass[2,ord],rev(quantile_thetass[1,ord])),
+        col=alpha("pink", 0.3), border = NA)
+
 
 #### Figure 4 ####
 # Posterior predictions
