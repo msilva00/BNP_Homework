@@ -300,26 +300,37 @@ plot_trace_density(param_phi, main1 = expression("Traceplot for" ~ phi),
 # hpd.alpha = hpd.uni(param_alpha)
 clusters = apply(param_theta, 1, function(x) length(unique(x)))
 ### Get theta groups
+setwd("~/BNP_Homework/HW3/")
+save(param_theta, file = "param_theta.RData")
+load("param_theta.RData")
+param_theta
 library(doMC)
 library(fields)
 # split work across 6 cores in parallel
+dim(param_theta)
+
 registerDoMC(6)
-par.fun = function(j){
-  out = double(n)
-  temp = table(unlist(apply(param_theta, 1, function(x) which(x == x[j]))))
+registerDoMC(6)
+theta_tables = function(j){
+  out = rep(0, n)
+  temp = table(do.call("c", apply(param_theta, 1, function(x) which(x == x[j]))))
   out[as.numeric(names(temp))] = temp
   return (out)
 }
-group = (foreach(j = 1:n, .combine = rbind) %dopar% par.fun(j)) / nmcmc
+
+group = (foreach(j = 1:n, .combine = rbind) %dopar% theta_tables(j)) / nmcmc
 # par(mfrow = c(2,2))
-plot(table(clusters) / nmcmc, main = expression(n^"*"), cex.main = 2, lwd = 3, ylab="Mass")
-a = par("pin")
-b = par("plt")
 image.plot(group[ord, ord], main = "Pairwise Clustering Probabilities", axes = F, col = heat.colors(250))
 ticks_names = seq(0,250, 10)
 axis(1, at=seq(0,1,length.out = length(ticks_names)) , labels=ticks_names, las = 2) 
 axis(2, at=seq(0,1,length.out = length(ticks_names)) , labels=ticks_names, las = 2) 
 box()
+
+
+plot(table(clusters) / nmcmc, main = expression(n^"*"), cex.main = 2, lwd = 3, ylab="Mass")
+a = par("pin")
+b = par("plt")
+
 par("pin" = a, "plt" = b)
 plot_trace_density(param_alpha, main1 = expression("Traceplot for" ~ alpha), par_settings = F,
                    main2 = expression("Posterior density for" ~ alpha),
