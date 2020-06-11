@@ -403,12 +403,12 @@ segments(x0 = jity, y0 = q0[1,], y1 = q0[2,], col = 'lightgreen')
 points(jity, m0, col = 'darkgreen', pch = 20)
 abline(0, 1, lwd = 3, lty = 2)
 
-criterion(y, y_0, 0)                     # 457.03
-criterion(y, y_0, Inf)                   # 590.09
-criterion(y, y_0, Inf) - criterion(y, y_0, 0) # 133.06
+criterion(y, y_0, 0)                     # 
+criterion(y, y_0, Inf)                   # 
+criterion(y, y_0, Inf) - criterion(y, y_0, 0) # 
 
 #### GG ####
 (g2=sum((apply(na.omit(y_0),2, mean)-x)^2))
 
 (p2=sum(apply(na.omit(y_0),2, sd)))
-(gg_criterion2=g2+p2) # 496.9563
+(gg_criterion2=g2+p2) # 
